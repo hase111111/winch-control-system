@@ -40,25 +40,41 @@ bool setupSerial() {
         return false;
     }
 
-    termios tty{};
-    tcgetattr(serial_port, &tty);
+    struct termios tty{};
+    if (tcgetattr(serial_port, &tty) != 0) {
+        perror("tcgetattr");
+        return false;
+    }
 
     cfsetispeed(&tty, B115200);
     cfsetospeed(&tty, B115200);
 
-    tty.c_cflag = CS8 | CREAD | CLOCAL;
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;
+
     tty.c_cflag |= PARENB;
     tty.c_cflag &= ~PARODD;
     tty.c_cflag &= ~CSTOPB;
 
-    tty.c_lflag = 0;
-    tty.c_iflag = 0;
-    tty.c_oflag = 0;
+    tty.c_cflag &= ~CRTSCTS;
+    tty.c_cflag |= CREAD | CLOCAL;
+
+    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP |
+                     INLCR | IGNCR | ICRNL);
+
+    tty.c_oflag &= ~OPOST;
 
     tty.c_cc[VTIME] = 10;
-    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VMIN]  = 0;
 
-    tcsetattr(serial_port, TCSANOW, &tty);
+    if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
+        perror("tcsetattr");
+        return false;
+    }
+
     return true;
 }
 
