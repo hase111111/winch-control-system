@@ -24,10 +24,9 @@ constexpr uint16_t CMD_SET_INPUT_VEL            = 0x00D;
 constexpr uint32_t AXIS_STATE_FULL_CALIBRATION_SEQUENCE = 3;
 constexpr uint32_t AXIS_STATE_CLOSED_LOOP_CONTROL       = 8;
 
-/* ---------- Gamepad (Logitech F310) ---------- */
+/* ---------- Gamepad (Logicool F310) ---------- */
 constexpr const char* GAMEPAD_DEV =
     "/dev/input/by-id/usb-Logicool_Gamepad_F310_F9BC2D6C-event-joystick";
-
 
 /* Axes */
 constexpr int AXIS_LY = ABS_Y;   // 1
@@ -44,8 +43,9 @@ constexpr float MAX_VEL = 5.0f;     // [turn/s]
 constexpr float DEADZONE = 0.05f;
 constexpr int   CONTROL_HZ = 100;
 
-constexpr float TRIGGER_MAX = 255.0f;
-constexpr float LB_RB_STEP  = 0.3f;  // 押すごとに増える微調整 [turn/s]
+constexpr float LOW_GAIN  = 0.3f;   // 低速倍率
+constexpr float HIGH_GAIN = 2.0f;   // 高速倍率
+constexpr int   TRIGGER_ON_THRESH = 20;  // 0-255 でONとみなす値
 
 /* ---------- Globals ---------- */
 int can_socket = -1;
@@ -128,14 +128,14 @@ int main() {
     std::cout << "Closed loop control\n";
 
     /* ---------- Control state ---------- */
-    float stick_vel1 = 0.0f;
-    float stick_vel2 = 0.0f;
+    float stick_norm1 = 0.0f;
+    float stick_norm2 = 0.0f;
 
-    float trigger_offset1 = 0.0f;
-    float trigger_offset2 = 0.0f;
+    bool low_mode_left  = false;
+    bool low_mode_right = false;
 
-    float button_offset1 = 0.0f;
-    float button_offset2 = 0.0f;
+    bool high_mode_left  = false;
+    bool high_mode_right = false;
 
     struct input_event ev{};
 
@@ -158,36 +158,42 @@ int main() {
         if (n == sizeof(ev)) {
             if (ev.type == EV_ABS) {
                 if (ev.code == AXIS_LY) {
-                    stick_vel1 = -normalize_axis(ev.value) * MAX_VEL;
+                    stick_norm1 = -normalize_axis(ev.value);
                 }
                 else if (ev.code == AXIS_RY) {
-                    stick_vel2 = -normalize_axis(ev.value) * MAX_VEL;
+                    stick_norm2 = -normalize_axis(ev.value);
                 }
                 else if (ev.code == AXIS_LT) {
-                    // LT: 左モータ 減速
-                    float t = ev.value / TRIGGER_MAX;
-                    trigger_offset1 = -t * MAX_VEL;
+                    // LT: 左 高速モード
+                    high_mode_left = (ev.value > TRIGGER_ON_THRESH);
                 }
                 else if (ev.code == AXIS_RT) {
-                    // RT: 右モータ 加速
-                    float t = ev.value / TRIGGER_MAX;
-                    trigger_offset2 = +t * MAX_VEL;
+                    // RT: 右 高速モード
+                    high_mode_right = (ev.value > TRIGGER_ON_THRESH);
                 }
             }
-            else if (ev.type == EV_KEY && ev.value == 1) {
+            else if (ev.type == EV_KEY) {
                 if (ev.code == BTN_LB) {
-                    // 左 微調整加速
-                    button_offset1 += LB_RB_STEP;
+                    low_mode_left = (ev.value != 0);
                 }
                 else if (ev.code == BTN_RB) {
-                    // 右 微調整加速
-                    button_offset2 += LB_RB_STEP;
+                    low_mode_right = (ev.value != 0);
                 }
             }
         }
 
-        float vel1 = stick_vel1 + trigger_offset1 + button_offset1;
-        float vel2 = stick_vel2 + trigger_offset2 + button_offset2;
+        float gain_left  = 1.0f;
+        float gain_right = 1.0f;
+
+        if (low_mode_left)   gain_left  = LOW_GAIN;
+        if (high_mode_left)  gain_left  = HIGH_GAIN;
+
+        if (low_mode_right)  gain_right = LOW_GAIN;
+        if (high_mode_right) gain_right = HIGH_GAIN;
+
+        // LB/LT だけでは動かない（stick=0なら必ず0）
+        float vel1 = stick_norm1 * MAX_VEL * gain_left;
+        float vel2 = stick_norm2 * MAX_VEL * gain_right;
 
         vel1 = std::clamp(vel1, -MAX_VEL, MAX_VEL);
         vel2 = std::clamp(vel2, -MAX_VEL, MAX_VEL);
