@@ -195,8 +195,8 @@ int main() {
         float vel1 = stick_norm1 * MAX_VEL * gain_left;
         float vel2 = stick_norm2 * MAX_VEL * gain_right;
 
-        vel1 = std::clamp(vel1, -MAX_VEL, MAX_VEL);
-        vel2 = std::clamp(vel2, -MAX_VEL, MAX_VEL);
+        vel1 = std::clamp(vel1, -MAX_VEL*3, MAX_VEL*3);
+        vel2 = std::clamp(vel2, -MAX_VEL*3, MAX_VEL*3);
 
         send_velocity(1, vel1);
         send_velocity(2, vel2);
