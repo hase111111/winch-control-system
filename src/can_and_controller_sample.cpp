@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
+#include <cerrno>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -22,15 +24,27 @@ constexpr uint16_t CMD_SET_INPUT_VEL            = 0x00D;
 constexpr uint32_t AXIS_STATE_FULL_CALIBRATION_SEQUENCE = 3;
 constexpr uint32_t AXIS_STATE_CLOSED_LOOP_CONTROL       = 8;
 
-/* ---------- Gamepad settings ---------- */
-constexpr const char* GAMEPAD_DEV = "/dev/input/event0"; // ←要確認
-constexpr int AXIS_LY = 1;  // 左スティックY
-constexpr int AXIS_RY = 4;  // 右スティックY
+/* ---------- Gamepad (Logitech F310) ---------- */
+constexpr const char* GAMEPAD_DEV =
+    "/dev/input/by-id/usb-Logitech_Gamepad_F310-event-joystick";
+
+/* Axes */
+constexpr int AXIS_LY = ABS_Y;   // 1
+constexpr int AXIS_RY = ABS_RY;  // 4
+constexpr int AXIS_LT = ABS_Z;   // 2
+constexpr int AXIS_RT = ABS_RZ;  // 5
+
+/* Buttons */
+constexpr int BTN_LB = BTN_TL;   // 310
+constexpr int BTN_RB = BTN_TR;   // 311
 
 /* ---------- Control parameters ---------- */
-constexpr float MAX_VEL = 5.0f;   // [turn/s]
+constexpr float MAX_VEL = 5.0f;     // [turn/s]
 constexpr float DEADZONE = 0.05f;
 constexpr int   CONTROL_HZ = 100;
+
+constexpr float TRIGGER_MAX = 255.0f;
+constexpr float LB_RB_STEP  = 0.3f;  // 押すごとに増える微調整 [turn/s]
 
 /* ---------- Globals ---------- */
 int can_socket = -1;
@@ -41,7 +55,10 @@ void send_axis_state(int node_id, uint32_t state) {
     frame.can_id  = (node_id << 5) | CMD_SET_AXIS_REQUESTED_STATE;
     frame.can_dlc = 4;
     std::memcpy(frame.data, &state, 4);
-    write(can_socket, &frame, sizeof(frame));
+
+    if (write(can_socket, &frame, sizeof(frame)) != sizeof(frame)) {
+        perror("CAN write axis state");
+    }
 }
 
 void send_velocity(int node_id, float vel_turn_s) {
@@ -49,7 +66,10 @@ void send_velocity(int node_id, float vel_turn_s) {
     frame.can_id  = (node_id << 5) | CMD_SET_INPUT_VEL;
     frame.can_dlc = 4;
     std::memcpy(frame.data, &vel_turn_s, 4);
-    write(can_socket, &frame, sizeof(frame));
+
+    if (write(can_socket, &frame, sizeof(frame)) != sizeof(frame)) {
+        perror("CAN write velocity");
+    }
 }
 
 /* ---------- Utility ---------- */
@@ -69,13 +89,20 @@ int main() {
 
     struct ifreq ifr{};
     std::strcpy(ifr.ifr_name, "can0");
-    ioctl(can_socket, SIOCGIFINDEX, &ifr);
+    if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
+        perror("SIOCGIFINDEX");
+        return 1;
+    }
 
     struct sockaddr_can addr{};
     addr.can_family  = AF_CAN;
     addr.can_ifindex = ifr.ifr_ifindex;
 
-    bind(can_socket, (struct sockaddr*)&addr, sizeof(addr));
+    if (bind(can_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("CAN bind");
+        return 1;
+    }
+
     std::cout << "CAN initialized\n";
 
     /* ---------- Gamepad init ---------- */
@@ -84,7 +111,8 @@ int main() {
         perror("Gamepad open");
         return 1;
     }
-    std::cout << "Gamepad opened\n";
+
+    std::cout << "Gamepad opened: " << GAMEPAD_DEV << "\n";
 
     /* ---------- Calibration ---------- */
     std::cout << "Start calibration\n";
@@ -98,26 +126,71 @@ int main() {
 
     std::cout << "Closed loop control\n";
 
-    /* ---------- Control loop ---------- */
-    float vel1 = 0.0f;
-    float vel2 = 0.0f;
+    /* ---------- Control state ---------- */
+    float stick_vel1 = 0.0f;
+    float stick_vel2 = 0.0f;
+
+    float trigger_offset1 = 0.0f;
+    float trigger_offset2 = 0.0f;
+
+    float button_offset1 = 0.0f;
+    float button_offset2 = 0.0f;
 
     struct input_event ev{};
 
+    /* ---------- Control loop ---------- */
     while (true) {
-        // --- Read controller ---
-        while (read(pad_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+        ssize_t n = read(pad_fd, &ev, sizeof(ev));
+
+        if (n == 0) {
+            std::cerr << "Gamepad disconnected (EOF)\n";
+            break;
+        }
+        if (n < 0) {
+            if (errno == ENODEV) {
+                std::cerr << "Gamepad disconnected (ENODEV)\n";
+                break;
+            }
+            // EAGAIN は無視
+        }
+
+        if (n == sizeof(ev)) {
             if (ev.type == EV_ABS) {
                 if (ev.code == AXIS_LY) {
-                    vel1 = -normalize_axis(ev.value) * MAX_VEL;
+                    stick_vel1 = -normalize_axis(ev.value) * MAX_VEL;
                 }
                 else if (ev.code == AXIS_RY) {
-                    vel2 = -normalize_axis(ev.value) * MAX_VEL;
+                    stick_vel2 = -normalize_axis(ev.value) * MAX_VEL;
+                }
+                else if (ev.code == AXIS_LT) {
+                    // LT: 左モータ 減速
+                    float t = ev.value / TRIGGER_MAX;
+                    trigger_offset1 = -t * MAX_VEL;
+                }
+                else if (ev.code == AXIS_RT) {
+                    // RT: 右モータ 加速
+                    float t = ev.value / TRIGGER_MAX;
+                    trigger_offset2 = +t * MAX_VEL;
+                }
+            }
+            else if (ev.type == EV_KEY && ev.value == 1) {
+                if (ev.code == BTN_LB) {
+                    // 左 微調整加速
+                    button_offset1 += LB_RB_STEP;
+                }
+                else if (ev.code == BTN_RB) {
+                    // 右 微調整加速
+                    button_offset2 += LB_RB_STEP;
                 }
             }
         }
 
-        // --- Send velocity ---
+        float vel1 = stick_vel1 + trigger_offset1 + button_offset1;
+        float vel2 = stick_vel2 + trigger_offset2 + button_offset2;
+
+        vel1 = std::clamp(vel1, -MAX_VEL, MAX_VEL);
+        vel2 = std::clamp(vel2, -MAX_VEL, MAX_VEL);
+
         send_velocity(1, vel1);
         send_velocity(2, vel2);
 
@@ -125,6 +198,11 @@ int main() {
             std::chrono::milliseconds(1000 / CONTROL_HZ)
         );
     }
+
+    /* ---------- Fail-safe stop ---------- */
+    std::cerr << "Stopping motors\n";
+    send_velocity(1, 0.0f);
+    send_velocity(2, 0.0f);
 
     close(pad_fd);
     close(can_socket);
