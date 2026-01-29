@@ -1,3 +1,8 @@
+// コントローラ入力を受けとるサンプルです．
+// 以下のコマンドでデバイスファイルを確認してください．
+// cat /proc/bus/input/devices
+// 適宜変更としているevent番号を入力しているデバイスに合わせれば動作します．
+
 #include <iostream>
 #include <fcntl.h>
 #include <unistd.h>
@@ -23,13 +28,13 @@ int main() {
             break;
         }
 
-        // ボタン入力
+        // ボタン入力.
         if (ev.type == EV_KEY) {
             std::cout << "[KEY] code=" << ev.code
                       << " value=" << ev.value << std::endl;
         }
 
-        // アナログスティック
+        // アナログスティック.
         if (ev.type == EV_ABS) {
             std::cout << "[AXIS] code=" << ev.code
                       << " value=" << ev.value << std::endl;
