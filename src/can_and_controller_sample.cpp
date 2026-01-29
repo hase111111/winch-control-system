@@ -26,7 +26,8 @@ constexpr uint32_t AXIS_STATE_CLOSED_LOOP_CONTROL       = 8;
 
 /* ---------- Gamepad (Logitech F310) ---------- */
 constexpr const char* GAMEPAD_DEV =
-    "/dev/input/by-id/usb-Logitech_Gamepad_F310-event-joystick";
+    "/dev/input/by-id/usb-Logicool_Gamepad_F310_F9BC2D6C-event-joystick";
+
 
 /* Axes */
 constexpr int AXIS_LY = ABS_Y;   // 1
