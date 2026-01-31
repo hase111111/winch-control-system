@@ -6,13 +6,14 @@
 #include <memory>
 #include <string>
 
+#include "i_handler.hpp"
 #include "time_series_storage.hpp"
 
 namespace winch {
 
 //! @brief シリアルポート通信を扱うクラス.
 //! ユニパルス製のロードセルDSCB-50kNとの通信を想定している. 
-class SerialPortHandler final {
+class SerialPortHandler final : public IHandler {
 public:
     SerialPortHandler(const std::string& port_name,
                       const std::atomic_bool& stop_flag,
@@ -22,15 +23,15 @@ public:
     //! DSCB-50kNとの通信用に設定をしているため，
     //! 他の機器と通信する場合は適宜修正が必要.
     //! @return 初期化に成功したらtrue，失敗したらfalseを返す.
-    bool Initialize();
+    bool Initialize() override;
 
     //! @brief シリアルポート通信の更新処理を行う.
     //! 内部でwhileループを回すため，別スレッドで実行すること.
     //! コンストラクタでこのクラスに渡すフラグを監視し，
     //! 終了フラグが立ったらループを抜ける.
-    void Update();
+    void Update() override;
 
-    void Finalize();
+    void Finalize() override;
 
 private:
     const std::string port_name_;

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <memory>
 
+#include "i_handler.hpp"
 #include "time_series_storage.hpp"
 
 namespace winch {
@@ -11,7 +12,7 @@ namespace winch {
 //! @brief UDP通信を扱うクラス.
 //! 本装置ではRaspberry Pi Pico2Wからの2台のポテンショメータ値受信を想定している.
 //! 受信したポテンショメータ値はそれぞれTimeSeriesStorageに保存される.
-class UdpHandler final {
+class UdpHandler final : public IHandler {
 public:
     UdpHandler(int port,
                const std::atomic_bool& stop_flag,
@@ -20,15 +21,15 @@ public:
 
     //! @brief UDP通信の初期化を行う.
     //! @return 初期化に成功したらtrue，失敗したらfalseを返す.
-    bool Initialize();
+    bool Initialize() override;
     
     //! @brief UDP通信の更新処理を行う.
     //! 内部でwhileループを回すため，別スレッドで実行すること.
     //! コンストラクタでこのクラスに渡すフラグを監視し，
     //! 終了フラグが立ったらループを抜ける.
-    void Update();
+    void Update() override;
     
-    void Finalize();
+    void Finalize() override;
     
 private:
     const int port_;

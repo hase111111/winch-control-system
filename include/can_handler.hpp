@@ -5,21 +5,23 @@
 #include <string>
 #include <cstdint>
 
+#include "i_handler.hpp"
+
 namespace winch {
 
-class CanHandler final {
+class CanHandler final : public IHandler {
 public:
     CanHandler(const std::string& interface_name,
                const std::atomic_bool& stop_flag);
 
-    bool Initialize();
+    bool Initialize() override;
         
     //! @brief CAN通信の更新処理を行う.
     //! キャリブレーション→10秒待機→速度指令ループを実行.
     //! 内部でwhileループを回すため、別スレッドで実行すること.
-    void Update();
+    void Update() override;
     
-    void Finalize();
+    void Finalize() override;
     
 private:
     //! @brief 指定したノードIDのモーターに軸状態を送信する.
