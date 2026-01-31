@@ -11,6 +11,21 @@
 
 namespace winch {
 
+namespace  {
+
+//! @brief 受信データのオフセット角度 [度].
+constexpr double kOffsetDegrees = 0.0;
+
+//! @brief UDPで送られてくるポテンショメータの値は0V ~ 3.3Vの範囲.
+//! これを0.0 ~ 360.0度に変換する.
+double ConvertVoltageToDegrees(const double voltage) {
+    constexpr double max_voltage = 3.3;
+    constexpr double max_degrees = 360.0;
+    return (voltage / max_voltage) * max_degrees - kOffsetDegrees;
+}
+    
+}  // namespace
+
 constexpr int INVALID_SOCKET = -1;
 
 UdpHandler::UdpHandler(const int port,
@@ -52,41 +67,43 @@ void UdpHandler::Update() {
     constexpr int kHz100_ms = 10;  // 100 Hz = 10 ms
     auto next_read_time = std::chrono::steady_clock::now();
 
+    // ポインタ渡しで値を受け取るためのバッファ.
     char buffer[256];
     struct sockaddr_in src_addr {};
     socklen_t src_len = sizeof(src_addr);
 
     while (!stop_flag_.load()) {
         // 100Hz周期でポーリング.
-        auto now = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
         if (now < next_read_time) {
             std::this_thread::sleep_for(next_read_time - now);
         }
         next_read_time += std::chrono::milliseconds(kHz100_ms);
 
         // ノンブロッキングで受信.
-        ssize_t len = recvfrom(socket_, buffer, sizeof(buffer) - 1, MSG_DONTWAIT,
+        const ssize_t len = recvfrom(socket_, buffer, sizeof(buffer) - 1, MSG_DONTWAIT,
                                (struct sockaddr*)&src_addr, &src_len);
 
         if (len > 0) {
             buffer[len] = '\0';
+            // カンマ区切りの2つの値を受信.
             // 例: 1.234,2.876.
             try {
-                std::string data(buffer);
-                size_t comma_pos = data.find(',');
+                const std::string data(buffer);
+                const size_t comma_pos = data.find(',');
                 if (comma_pos != std::string::npos) {
-                    double pot1 = std::stod(data.substr(0, comma_pos));
-                    double pot2 = std::stod(data.substr(comma_pos + 1));
+                    const double pot1 = std::stod(data.substr(0, comma_pos));
+                    const double pot2 = std::stod(data.substr(comma_pos + 1));
 
-                    auto now = std::chrono::steady_clock::now();
-                    std::chrono::duration<double> elapsed = now - start_time;
-                    double time_sec = elapsed.count();
+                    const auto now = std::chrono::steady_clock::now();
+                    const std::chrono::duration<double> elapsed = now - start_time;
+                    const double time_sec = elapsed.count();
 
                     if (pot1_storage_) {
-                        pot1_storage_->Add(time_sec, pot1);
+                        pot1_storage_->Add(time_sec, ConvertVoltageToDegrees(pot1));
                     }
                     if (pot2_storage_) {
-                        pot2_storage_->Add(time_sec, pot2);
+                        pot2_storage_->Add(time_sec, ConvertVoltageToDegrees(pot2));
                     }
                 }
             }
