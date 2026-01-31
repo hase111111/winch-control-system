@@ -3,56 +3,63 @@
 #include <memory>
 #include <atomic>
 #include <vector>
-#include <utility>
 #include <string>
 
 #include "config_loader.hpp"
-#include "input_handler.hpp"
+#include "handler_factory.hpp"
+#include "i_handler.hpp"
+#include "storage_factory.hpp"
 #include "time_series_storage.hpp"
 
 int main(int argc, char* argv[]) {
     // 使用するクラスを using 宣言で指定．
     using winch::ConfigLoader;
-    using winch::InputHandler;
+    using winch::HandlerFactory;
+    using winch::IHandler;
+    using winch::StorageFactory;
     using winch::TimeSeriesStorage;
 
+    // 全ハンドラーで共有する停止フラグ.
     std::atomic_bool stop_flag(false);
 
-    // 設定ファイルを読み込み
+    // 設定ファイルを読み込み.
     const std::string config_path = (argc > 1) ? argv[1] : "config.ini";
     ConfigLoader config;
     if (!config.Load(config_path)) {
         std::cerr << "設定ファイルの読み込みに失敗しました．" << std::endl;
-    }
-
-    const std::string serial_port = config.GetVal<std::string>("Serial", "port", "/dev/ttyUSB0");
-    const int udp_port = config.GetVal<int>("UDP", "port", 5005);
-    std::cout << "Serial port: " << serial_port << std::endl;
-    std::cout << "UDP port: " << udp_port << std::endl;
-
-    // データ保存用クラスを作成（名前付き）
-    std::vector<std::pair<std::string, std::shared_ptr<TimeSeriesStorage>>> storages = {
-        {"Serial Port", std::make_shared<TimeSeriesStorage>()},
-        {"UDP Potentiometer", std::make_shared<TimeSeriesStorage>()},
-        {"CAN Motor", std::make_shared<TimeSeriesStorage>()},
-    };
-
-    // 入力ハンドラーを作成
-    InputHandler input_handler(stop_flag, storages);
-
-    if (!input_handler.Initialize()) {
-        std::cerr << "入力ハンドラーの初期化に失敗しました．" << std::endl;
         return 1;
     }
 
-    // 別スレッドでUpdateを実行
-    std::thread input_thread(&InputHandler::Update, &input_handler);
+    // データ保存用クラスを作成（名前付き）.
+    auto storages = StorageFactory::CreateDefaultStorages();
 
-    // メインスレッドでスレッド終了を待つ
-    input_thread.join();
+    // ハンドラーファクトリで生成.
+    HandlerFactory factory(config, stop_flag);
+    std::vector<std::shared_ptr<IHandler>> handlers = factory.CreateHandlers(storages);
 
-    // クリーンアップ
-    input_handler.Finalize();
+    for (const auto& handler : handlers) {
+        if (!handler->Initialize()) {
+            std::cerr << "ハンドラーの初期化に失敗しました．" << std::endl;
+            return 1;
+        }
+    }
+
+    // 別スレッドでUpdateを実行.
+    std::vector<std::thread> threads;
+    threads.reserve(handlers.size());
+    for (const auto& handler : handlers) {
+        threads.emplace_back([handler]() { handler->Update(); });
+    }
+
+    // メインスレッドでスレッド終了を待つ.
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // クリーンアップ.
+    for (const auto& handler : handlers) {
+        handler->Finalize();
+    }
 
     return 0;
 }

@@ -48,3 +48,6 @@ cmake_install.cmake
 Makefile
 compile_commands.json
 *.cmake
+
+# Cache directories
+.cache/
