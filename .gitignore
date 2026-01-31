@@ -51,3 +51,6 @@ compile_commands.json
 
 # Cache directories
 .cache/
+
+# Data logs
+data_logs/

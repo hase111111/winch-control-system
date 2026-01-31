@@ -8,6 +8,7 @@
 #include "config_loader.hpp"
 #include "handler_factory.hpp"
 #include "i_handler.hpp"
+#include "storage_csv_exporter.hpp"
 #include "storage_factory.hpp"
 #include "time_series_storage.hpp"
 
@@ -16,6 +17,7 @@ int main(int argc, char* argv[]) {
     using winch::ConfigLoader;
     using winch::HandlerFactory;
     using winch::IHandler;
+    using winch::StorageCsvExporter;
     using winch::StorageFactory;
     using winch::TimeSeriesStorage;
 
@@ -60,6 +62,11 @@ int main(int argc, char* argv[]) {
     for (const auto& handler : handlers) {
         handler->Finalize();
     }
+
+    // CSV出力（標準入力で確認）.
+    const std::string output_dir = config.GetVal<std::string>("CSV", "output_directory", "./data_logs");
+    StorageCsvExporter exporter(storages);
+    exporter.ExportInteractive(output_dir);
 
     return 0;
 }
