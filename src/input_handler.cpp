@@ -30,18 +30,18 @@ void InputHandler::Update() {
     while (!stop_flag_.load()) {
         std::getline(std::cin, input);
         
-        if (input == "exit" || input == "quit") {
+        if (input == "exit" || input == "quit" || input == "q") {
             std::cout << "終了コマンドを受信しました。システムを停止します..." << std::endl;
             stop_flag_.store(true);
             break;
         }
         
-        if (input == "help") {
+        if (input == "help" || input == "h") {
             PrintHelp();
             continue;
         }
         
-        if (input == "data") {
+        if (input == "data" || input == "d") {
             std::cout << "\n=== 最新データ ===" << std::endl;
             for (const auto& [name, storage] : storages_) {
                 if (storage) {
@@ -58,7 +58,7 @@ void InputHandler::Update() {
             continue;
         }
         
-        if (input == "count") {
+        if (input == "count" || input == "c") {
             std::cout << "\n=== データ数 ===" << std::endl;
             for (const auto& [name, storage] : storages_) {
                 if (storage) {
@@ -70,7 +70,7 @@ void InputHandler::Update() {
             continue;
         }
         
-        // 未知コマンド
+        // 未知コマンド.
         if (!input.empty()) {
             std::cout << "エラー: 不明なコマンドです。 'help' を入力してコマンド一覧を確認してください。" << std::endl;
         }
