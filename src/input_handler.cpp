@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <string>
+#include <chrono>
+#include <thread>
 
 namespace winch {
 
@@ -20,6 +22,7 @@ void InputHandler::PrintHelp() const {
     std::cout << "  exit, quit - システムを終了" << std::endl;
     std::cout << "  data       - 各ストレージの最新データを表示" << std::endl;
     std::cout << "  count      - 各ストレージのデータ数を表示" << std::endl;
+    std::cout << "  monitor    - 10秒間、0.1秒周期で各ストレージの最新データを表示" << std::endl;
     std::cout << "  help       - このヘルプを表示" << std::endl;
     std::cout << std::endl;
 }
@@ -67,6 +70,26 @@ void InputHandler::Update() {
                 }
             }
             std::cout << std::endl;
+            continue;
+        }
+        
+        if (input == "monitor" || input == "m") {
+            std::cout << "\n=== 10秒間モニタリング開始 ===" << std::endl;
+            auto start = std::chrono::steady_clock::now();
+            while (std::chrono::steady_clock::now() - start < std::chrono::seconds(10)) {
+                for (const auto& [name, storage] : storages_) {
+                    if (storage) {
+                        auto snapshot = storage->GetSnapshot();
+                        if (!snapshot.empty()) {
+                            const auto& [time, value] = snapshot.back();
+                            printf("%s: [%6.3f s] %10.4f\n", name.c_str(), time, value);
+                        }
+                    }
+                }
+                printf("---\n");
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            std::cout << "=== モニタリング終了 ===" << std::endl;
             continue;
         }
         
