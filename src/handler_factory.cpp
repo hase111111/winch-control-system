@@ -46,7 +46,7 @@ std::vector<std::shared_ptr<IHandler>> HandlerFactory::CreateHandlers(
 
     if (enable_can) {
         std::cout << "Create CanHandler" << std::endl;
-        if (auto can_handler = CreateCanHandler()) {
+        if (auto can_handler = CreateCanHandler(storages)) {
             handlers.emplace_back(std::move(can_handler));
         }
     }
@@ -86,14 +86,35 @@ std::shared_ptr<IHandler> HandlerFactory::CreateUdpHandler(
     return std::make_shared<UdpHandler>(udp_port, stop_flag_, pot0, pot1);
 }
 
-std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler() const {
+std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
+    const std::vector<std::pair<std::string, std::shared_ptr<TimeSeriesStorage>>>& storages) const {
     const auto can_if = config_.GetVal<std::string>("CAN", "interface");
     if (can_if.empty()) {
         std::cerr << "CANインターフェース名が空です．" << std::endl;
         return nullptr;
     }
     std::cout << "CAN interface: " << can_if << std::endl;
-    return std::make_shared<CanHandler>(can_if, stop_flag_);
+    
+    // storageを取得
+    auto roadcell_storage = FindStorageByName(storages, "Serial Port Roadcell");
+    auto potentiometer_storage = FindStorageByName(storages, "UDP Potentiometer0");
+    if (!roadcell_storage || !potentiometer_storage) {
+        std::cerr << "CAN用ストレージが見つかりません．" << std::endl;
+        return nullptr;
+    }
+    
+    // PDゲインを取得
+    const double kp1 = config_.GetVal<double>("PDControl", "motor1_kp", 1.0);
+    const double kd1 = config_.GetVal<double>("PDControl", "motor1_kd", 0.1);
+    const double kp2 = config_.GetVal<double>("PDControl", "motor2_kp", 1.2);
+    const double kd2 = config_.GetVal<double>("PDControl", "motor2_kd", 0.15);
+    std::cout << "PD Gains Motor1: Kp=" << kp1 << ", Kd=" << kd1 << std::endl;
+    std::cout << "PD Gains Motor2: Kp=" << kp2 << ", Kd=" << kd2 << std::endl;
+    
+    // モータ移動フラグを取得
+    const bool move_motors = config_.GetVal<bool>("Flags", "move_morotors", true);
+    
+    return std::make_shared<CanHandler>(can_if, stop_flag_, roadcell_storage, potentiometer_storage, kp1, kd1, kp2, kd2, move_motors);
 }
 
 std::shared_ptr<TimeSeriesStorage> HandlerFactory::FindStorageByName(

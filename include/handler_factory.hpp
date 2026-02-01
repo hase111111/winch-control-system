@@ -33,7 +33,8 @@ private:
         const std::vector<std::pair<std::string, std::shared_ptr<TimeSeriesStorage>>>& storages) const;
 
     //! @brief CANハンドラーを生成する.
-    std::shared_ptr<IHandler> CreateCanHandler() const;
+    std::shared_ptr<IHandler> CreateCanHandler(
+        const std::vector<std::pair<std::string, std::shared_ptr<TimeSeriesStorage>>>& storages) const;
 
     //! @brief 名前でストレージを検索する.
     //! @param storages データ保存用ストレージの(name, storage)ペアvector.

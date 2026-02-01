@@ -29,9 +29,27 @@ constexpr uint32_t AXIS_STATE_FULL_CALIBRATION_SEQUENCE = 3;
 constexpr uint32_t AXIS_STATE_CLOSED_LOOP_CONTROL = 8;
 
 CanHandler::CanHandler(const std::string& interface_name,
-                       const std::atomic_bool& stop_flag)
+                       const std::atomic_bool& stop_flag,
+                       std::shared_ptr<TimeSeriesStorage> roadcell_storage,
+                       std::shared_ptr<TimeSeriesStorage> potentiometer_storage,
+                       double kp1,
+                       double kd1,
+                       double kp2,
+                       double kd2,
+                       bool move_motors)
     : interface_name_(interface_name), stop_flag_(stop_flag),
-      can_socket_(INVALID_SOCKET) {}
+      can_socket_(INVALID_SOCKET),
+      roadcell_storage_(roadcell_storage),
+      potentiometer_storage_(potentiometer_storage),
+      pd_controller_motor1_(),
+      pd_controller_motor2_(),
+      move_motors_(move_motors) {
+    // PD制御のゲインをconfigから設定
+    pd_controller_motor1_.SetGains(kp1, kd1);
+    pd_controller_motor2_.SetGains(kp2, kd2);
+    
+    std::cout << "モータ移動フラグ: " << (move_motors_ ? "有効" : "無効") << std::endl;
+}
 
 bool CanHandler::Initialize() {
     // CANソケットを作成
@@ -105,8 +123,7 @@ void CanHandler::Update() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // 速度指令ループ (100Hz).
-    constexpr float target_velocity = 1.0f;  // 1回転/秒.
+    // PD制御ループ (100Hz).
     constexpr int hz = 100;
     auto next_send_time = std::chrono::steady_clock::now();
 
@@ -117,8 +134,25 @@ void CanHandler::Update() {
         }
         next_send_time += std::chrono::milliseconds(1000 / hz);
 
-        SendVelocity(1, target_velocity);
-        SendVelocity(2, target_velocity);
+        // 目標値（Roadcell）と現在値（Potentiometer）を取得
+        double target = roadcell_storage_->GetLatestValue();
+        double current = potentiometer_storage_->GetLatestValue();
+        double d_error_dt = potentiometer_storage_->GetLatestDifference();
+        
+        // PD制御で誤差を計算
+        double error = target - current;
+        double control_output_motor1 = pd_controller_motor1_.Compute(error, d_error_dt);
+        double control_output_motor2 = pd_controller_motor2_.Compute(error, d_error_dt);
+        
+        // 制御出力をモータ速度指令に変換（適宜スケーリングが必要）
+        float velocity_cmd_motor1 = static_cast<float>(control_output_motor1);
+        float velocity_cmd_motor2 = static_cast<float>(control_output_motor2);
+        
+        // move_motors_がtrueの場合のみ速度指令を送信
+        if (move_motors_) {
+            SendVelocity(1, velocity_cmd_motor1);
+            SendVelocity(2, velocity_cmd_motor2);
+        }
     }
 }
 
