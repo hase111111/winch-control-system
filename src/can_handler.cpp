@@ -100,7 +100,7 @@ bool CanHandler::Initialize() {
     addr.can_ifindex = ifr.ifr_ifindex;
 
     if (bind(can_socket_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        std::cerr << "CANソケットのバインドに失敗しました．" << std::endl;
+        std::cerr << "CANソケットのバインドに失敗しました." << std::endl;
         close(can_socket_);
         can_socket_ = INVALID_SOCKET;
         return false;
@@ -110,7 +110,7 @@ bool CanHandler::Initialize() {
     int flags = fcntl(can_socket_, F_GETFL, 0);
     fcntl(can_socket_, F_SETFL, flags | O_NONBLOCK);
 
-    std::cout << "CANの初期化に成功しました．" << std::endl;
+    std::cout << "CANの初期化に成功しました." << std::endl;
 
     return true;
 }
@@ -182,8 +182,8 @@ void CanHandler::Update() {
     SendAxisState(1, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
     SendAxisState(2, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
 
-    // 10秒待機.
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    // 30秒待機
+    std::this_thread::sleep_for(std::chrono::seconds(30));
 
     if (stop_flag_.load()) return;
 
