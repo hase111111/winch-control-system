@@ -117,6 +117,14 @@ bool SerialPortHandler::Initialize() {
         std::cerr << "ポートの属性を設定できませんでした．ポート名: " << port_name_ << std::endl;
         return false;
     }
+    
+    // シリアルバッファをクリア
+    tcflush(serial_port_, TCIOFLUSH);
+    
+    // 古いデータを舐き診ようように少し認可値を上げる
+    tty.c_cc[VTIME] = 1;  // 0.1秒タイムアウト
+    tty.c_cc[VMIN] = 0;   // 非ブロッキング
+    tcsetattr(serial_port_, TCSANOW, &tty);
 
     is_initialized_ = true;
     return true;
@@ -128,7 +136,13 @@ void SerialPortHandler::Update() {
 
     // データ受信開始コマンドを送信.
     WriteSerial(serial_port_, kStartCommand);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // 古いデータを舐き診ながら一気に肺辺
+    char junk[1024];
+    while (read(serial_port_, junk, sizeof(junk)) > 0) {
+        // バッファを洗い流す
+    }
 
     const auto start_time = std::chrono::steady_clock::now();
     std::string buffer;
@@ -144,32 +158,37 @@ void SerialPortHandler::Update() {
         }
         next_read_time += std::chrono::milliseconds(kHz100_ms);
 
-        // 1文字ずつ読み込む（ノンブロッキング）.
-        char c;
-        int n = read(serial_port_, &c, 1);
+        // 複数文字を読み込む（最新データを取得しやすくする）
+        char buffer_chars[256];
+        int n = read(serial_port_, buffer_chars, sizeof(buffer_chars) - 1);
 
         if (n > 0) {
-            if (c == '\n') {
-                // 改行で1行完成.
-                size_t comma_pos = buffer.find(',');
-                if (comma_pos != std::string::npos) {
-                    try {
-                        std::string val_str = buffer.substr(comma_pos + 1);
-                        double value = std::stod(val_str);
-                        if (storage_) {
-                            auto now = std::chrono::steady_clock::now();
-                            std::chrono::duration<double> elapsed = now - start_time;
-                            storage_->Add(elapsed.count(), value);
+            buffer_chars[n] = '\0';
+            // 受け取ったデータを処理
+            for (int i = 0; i < n; i++) {
+                char c = buffer_chars[i];
+                if (c == '\n') {
+                    // 改行で1行完成.
+                    size_t comma_pos = buffer.find(',');
+                    if (comma_pos != std::string::npos) {
+                        try {
+                            std::string val_str = buffer.substr(comma_pos + 1);
+                            double value = std::stod(val_str);
+                            if (storage_) {
+                                auto now = std::chrono::steady_clock::now();
+                                std::chrono::duration<double> elapsed = now - start_time;
+                                storage_->Add(elapsed.count(), value);
+                            }
+                        }
+                        catch (...) {
+                            // パース失敗は無視.
                         }
                     }
-                    catch (...) {
-                        // パース失敗は無視.
-                    }
+                    buffer.clear();
+                } else if (c != '\r') {
+                    // \r は無視、それ以外をバッファに追加.
+                    buffer += c;
                 }
-                buffer.clear();
-            } else if (c != '\r') {
-                // \r は無視、それ以外をバッファに追加.
-                buffer += c;
             }
         }
         // n <= 0 の場合はデータなし。次の周期まで待機.
