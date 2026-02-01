@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "can_handler.hpp"
+#include "can_controller_handler.hpp"
 #include "input_handler.hpp"
 #include "serial_port_handler.hpp"
 #include "test_counter_handler.hpp"
@@ -21,10 +22,12 @@ std::vector<std::shared_ptr<IHandler>> HandlerFactory::CreateHandlers(
     const bool enable_serial = config_.GetVal<bool>("Flags", "enable_serial", true);
     const bool enable_udp = config_.GetVal<bool>("Flags", "enable_udp", true);
     const bool enable_can = config_.GetVal<bool>("Flags", "enable_can", true);
+    const bool enable_can_controller = config_.GetVal<bool>("Flags", "enable_can_controller", false);
 
     std::cout << "Handler flags: serial=" << (enable_serial ? "on" : "off")
               << ", udp=" << (enable_udp ? "on" : "off")
-              << ", can=" << (enable_can ? "on" : "off") << std::endl;
+              << ", can=" << (enable_can ? "on" : "off")
+              << ", can_controller=" << (enable_can_controller ? "on" : "off") << std::endl;
 
     // 入力ハンドラーを生成.
     std::cout << "Create InputHandler" << std::endl;
@@ -48,6 +51,13 @@ std::vector<std::shared_ptr<IHandler>> HandlerFactory::CreateHandlers(
         std::cout << "Create CanHandler" << std::endl;
         if (auto can_handler = CreateCanHandler(storages)) {
             handlers.emplace_back(std::move(can_handler));
+        }
+    }
+    
+    if (enable_can_controller) {
+        std::cout << "Create CanControllerHandler" << std::endl;
+        if (auto can_controller_handler = CreateCanControllerHandler(storages)) {
+            handlers.emplace_back(std::move(can_controller_handler));
         }
     }
 
@@ -113,6 +123,31 @@ std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
                                         roadcell_storage, potentiometer_storage, 
                                         motor0_control_storage, motor1_control_storage,
                                         motor0_encoder_storage, motor1_encoder_storage);
+}
+
+std::shared_ptr<IHandler> HandlerFactory::CreateCanControllerHandler(
+    const std::vector<std::pair<std::string, std::shared_ptr<TimeSeriesStorage>>>& storages) const {
+    const auto can_if = config_.GetVal<std::string>("CAN", "interface");
+    if (can_if.empty()) {
+        std::cerr << "CANインターフェース名が空です．" << std::endl;
+        return nullptr;
+    }
+    
+    // storageを取得
+    auto motor0_control_storage = FindStorageByName(storages, "CAN Motor0 Controll Value");
+    auto motor1_control_storage = FindStorageByName(storages, "CAN Motor1 Controll Value");
+    auto motor0_encoder_storage = FindStorageByName(storages, "CAN Motor0 Encoder");
+    auto motor1_encoder_storage = FindStorageByName(storages, "CAN Motor1 Encoder");
+    
+    if (!motor0_control_storage || !motor1_control_storage ||
+        !motor0_encoder_storage || !motor1_encoder_storage) {
+        std::cerr << "CANコントローラー用ストレージが見つかりません．" << std::endl;
+        return nullptr;
+    }
+    
+    return std::make_shared<CanControllerHandler>(config_, stop_flag_,
+                                                   motor0_control_storage, motor1_control_storage,
+                                                   motor0_encoder_storage, motor1_encoder_storage);
 }
 
 std::shared_ptr<TimeSeriesStorage> HandlerFactory::FindStorageByName(

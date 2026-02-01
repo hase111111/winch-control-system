@@ -75,6 +75,12 @@ inline double ConfigLoader::ConvertValue<double>(const std::string& str) {
     return std::stod(str);
 }
 
+// テンプレート特殊化: float.
+template <>
+inline float ConfigLoader::ConvertValue<float>(const std::string& str) {
+    return std::stof(str);
+}
+
 // テンプレート特殊化: bool.
 template <>
 inline bool ConfigLoader::ConvertValue<bool>(const std::string& str) {
