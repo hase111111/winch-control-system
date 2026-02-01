@@ -118,13 +118,8 @@ bool SerialPortHandler::Initialize() {
         return false;
     }
     
-    // シリアルバッファをクリア
+    // シリアルバッファをクリア（プログラム起動前の古いデータを削除）
     tcflush(serial_port_, TCIOFLUSH);
-    
-    // 古いデータを舐き診ようように少し認可値を上げる
-    tty.c_cc[VTIME] = 1;  // 0.1秒タイムアウト
-    tty.c_cc[VMIN] = 0;   // 非ブロッキング
-    tcsetattr(serial_port_, TCSANOW, &tty);
 
     is_initialized_ = true;
     return true;
@@ -138,10 +133,10 @@ void SerialPortHandler::Update() {
     WriteSerial(serial_port_, kStartCommand);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    // 古いデータを舐き診ながら一気に肺辺
-    char junk[1024];
-    while (read(serial_port_, junk, sizeof(junk)) > 0) {
-        // バッファを洗い流す
+    // コマンド送信から実際の受信開始までの間に溜まったバッファをクリア
+    char drain_buffer[1024];
+    while (read(serial_port_, drain_buffer, sizeof(drain_buffer)) > 0) {
+        // バッファに溜まった古いデータを破棄
     }
 
     const auto start_time = std::chrono::steady_clock::now();
