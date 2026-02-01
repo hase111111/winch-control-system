@@ -3,7 +3,6 @@
 #include <iostream>
 #include <cstring>
 #include <string>
-#include <thread>
 #include <chrono>
 
 // Linux用シリアル通信ライブラリ.
