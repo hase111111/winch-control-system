@@ -14,6 +14,8 @@
 
 namespace winch {
 
+// https://docs.odriverobotics.com/v/latest/manual/can-protocol.html
+
 constexpr int INVALID_SOCKET = -1;
 
 // ODrive CAN コマンド（送信用）
@@ -22,6 +24,7 @@ constexpr uint16_t CMD_SET_INPUT_POS = 0x00C;
 constexpr uint16_t CMD_SET_INPUT_VEL = 0x00D;
 
 // ODrive 軸状態
+constexpr uint32_t AXIS_STATE_IDLE = 1;
 constexpr uint32_t AXIS_STATE_FULL_CALIBRATION_SEQUENCE = 3;
 constexpr uint32_t AXIS_STATE_CLOSED_LOOP_CONTROL = 8;
 
@@ -121,6 +124,20 @@ void CanHandler::Update() {
 
 void CanHandler::Finalize() {
     if (can_socket_ >= 0) {
+        // モータを停止させる.
+        SendVelocity(1, 0.0f);
+        SendVelocity(2, 0.0f);
+        
+        // 少し待機してから軸をIDLE状態に.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        SendAxisState(1, AXIS_STATE_IDLE);
+        SendAxisState(2, AXIS_STATE_IDLE);
+        
+        // さらに少し待機してコマンドが送信されるのを確認.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // ソケットを閉じる.
         close(can_socket_);
         can_socket_ = INVALID_SOCKET;
     }
