@@ -2,7 +2,7 @@
 
 namespace winch {
 
-double PDController::Compute(double error, double d_error_dt) {
+double PDController::Compute(const double error, const double d_error_dt) {
     return (kp_ * error) + (kd_ * d_error_dt);
 }
 
