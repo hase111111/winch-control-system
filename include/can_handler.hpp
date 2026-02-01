@@ -9,20 +9,20 @@
 #include "i_handler.hpp"
 #include "time_series_storage.hpp"
 #include "pd_controller.hpp"
+#include "config_loader.hpp"
 
 namespace winch {
 
 class CanHandler final : public IHandler {
 public:
-    CanHandler(const std::string& interface_name,
+    CanHandler(const ConfigLoader& config,
                const std::atomic_bool& stop_flag,
                std::shared_ptr<TimeSeriesStorage> roadcell_storage,
                std::shared_ptr<TimeSeriesStorage> potentiometer_storage,
-               double kp1,
-               double kd1,
-               double kp2,
-               double kd2,
-               bool move_motors);
+               std::shared_ptr<TimeSeriesStorage> motor0_control_storage,
+               std::shared_ptr<TimeSeriesStorage> motor1_control_storage,
+               std::shared_ptr<TimeSeriesStorage> motor0_encoder_storage,
+               std::shared_ptr<TimeSeriesStorage> motor1_encoder_storage);
 
     bool Initialize() override;
         
@@ -43,6 +43,10 @@ private:
     //! @param node_id ノードID (1, 2, ...)
     //! @param vel_turn_s 目標速度 [回転/秒]
     void SendVelocity(int node_id, float vel_turn_s);
+    
+    //! @brief CANメッセージを受信してエンコーダ値を処理する.
+    //! @param timeout_ms タイムアウト時間[ミリ秒]
+    void ReceiveCanMessages(int timeout_ms);
 
     std::string interface_name_;
     const std::atomic_bool& stop_flag_;
@@ -50,9 +54,14 @@ private:
     
     std::shared_ptr<TimeSeriesStorage> roadcell_storage_;
     std::shared_ptr<TimeSeriesStorage> potentiometer_storage_;
-    PDController pd_controller_motor1_;
-    PDController pd_controller_motor2_;
+    std::shared_ptr<TimeSeriesStorage> motor0_control_storage_;
+    std::shared_ptr<TimeSeriesStorage> motor1_control_storage_;
+    std::shared_ptr<TimeSeriesStorage> motor0_encoder_storage_;
+    std::shared_ptr<TimeSeriesStorage> motor1_encoder_storage_;
+    PDController pd_controller_motor1_{};
+    PDController pd_controller_motor2_{};
     bool move_motors_;
+    double gravity_compensation_;
 };
 
 }  // namespace winch

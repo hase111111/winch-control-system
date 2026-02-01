@@ -93,28 +93,26 @@ std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
         std::cerr << "CANインターフェース名が空です．" << std::endl;
         return nullptr;
     }
-    std::cout << "CAN interface: " << can_if << std::endl;
     
     // storageを取得
     auto roadcell_storage = FindStorageByName(storages, "Serial Port Roadcell");
     auto potentiometer_storage = FindStorageByName(storages, "UDP Potentiometer0");
-    if (!roadcell_storage || !potentiometer_storage) {
+    auto motor0_control_storage = FindStorageByName(storages, "CAN Motor0 Controll Value");
+    auto motor1_control_storage = FindStorageByName(storages, "CAN Motor1 Controll Value");
+    auto motor0_encoder_storage = FindStorageByName(storages, "CAN Motor0 Encoder");
+    auto motor1_encoder_storage = FindStorageByName(storages, "CAN Motor1 Encoder");
+    
+    if (!roadcell_storage || !potentiometer_storage || 
+        !motor0_control_storage || !motor1_control_storage ||
+        !motor0_encoder_storage || !motor1_encoder_storage) {
         std::cerr << "CAN用ストレージが見つかりません．" << std::endl;
         return nullptr;
     }
     
-    // PDゲインを取得
-    const double kp1 = config_.GetVal<double>("PDControl", "motor1_kp", 1.0);
-    const double kd1 = config_.GetVal<double>("PDControl", "motor1_kd", 0.1);
-    const double kp2 = config_.GetVal<double>("PDControl", "motor2_kp", 1.2);
-    const double kd2 = config_.GetVal<double>("PDControl", "motor2_kd", 0.15);
-    std::cout << "PD Gains Motor1: Kp=" << kp1 << ", Kd=" << kd1 << std::endl;
-    std::cout << "PD Gains Motor2: Kp=" << kp2 << ", Kd=" << kd2 << std::endl;
-    
-    // モータ移動フラグを取得
-    const bool move_motors = config_.GetVal<bool>("Flags", "move_morotors", true);
-    
-    return std::make_shared<CanHandler>(can_if, stop_flag_, roadcell_storage, potentiometer_storage, kp1, kd1, kp2, kd2, move_motors);
+    return std::make_shared<CanHandler>(config_, stop_flag_, 
+                                        roadcell_storage, potentiometer_storage, 
+                                        motor0_control_storage, motor1_control_storage,
+                                        motor0_encoder_storage, motor1_encoder_storage);
 }
 
 std::shared_ptr<TimeSeriesStorage> HandlerFactory::FindStorageByName(
