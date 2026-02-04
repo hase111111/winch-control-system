@@ -6,6 +6,7 @@
 #include "can_controller_handler.hpp"
 #include "input_handler.hpp"
 #include "serial_port_handler.hpp"
+#include "serial_port_handler_1.hpp"
 #include "test_counter_handler.hpp"
 #include "time_series_storage.hpp"
 #include "udp_handler.hpp"
