@@ -40,4 +40,16 @@ double TimeSeriesStorage::GetLatestDifference() const {
     return (delta_t != 0.0) ? (delta_v / delta_t) : 0.0;
 }
 
+double TimeSeriesStorage::GetAverageValue() const {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    if (values_.empty()) {
+        return 0.0;
+    }
+    double sum = 0.0;
+    for (const auto& [time, value] : values_) {
+        sum += value;
+    }
+    return sum / static_cast<double>(values_.size());
+}
+
 }  // namespace winch

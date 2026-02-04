@@ -14,6 +14,8 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 
+#include "math_util.hpp"
+
 namespace winch {
 
 // https://docs.odriverobotics.com/v/latest/manual/can-protocol.html
@@ -213,7 +215,7 @@ void CanHandler::Update() {
         const auto potentio0 = potentiometer0_storage_->GetLatestValue();
         const auto gravity = gravity_compensation_ 
             / cos(potentio0 / 360.0 * 3.1415); 
-        const auto error0_d = roadcell_storage_->GetLatestValue() / 1000.0;
+        const auto error0_d = Clamp(roadcell_storage_->GetLatestValue(), -0.3, 0.3) / 1000.0;
         const auto error0 = gravity - error0_d / 1000.0;
         const auto d_error0 = -roadcell_storage_->GetLatestDifference();
         const auto error1 = potentiometer1_storage_->GetLatestValue();

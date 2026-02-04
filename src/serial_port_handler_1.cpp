@@ -1,4 +1,4 @@
-#include "serial_port_handler.hpp"
+#include "serial_port_handler1.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -44,7 +44,7 @@ void WriteSerial(int fd, const std::string& data) {
 
 }  // namespace
 
-SerialPortHandler::SerialPortHandler(
+SerialPortHandler1::SerialPortHandler1(
         const std::string& port_name,
         const std::atomic_bool& stop_flag,
         std::shared_ptr<TimeSeriesStorage> storage)
@@ -52,7 +52,7 @@ SerialPortHandler::SerialPortHandler(
             storage_(std::move(storage)),
             serial_port_{INVALID_FD} {}
 
-bool SerialPortHandler::Initialize() {
+bool SerialPortHandler1::Initialize() {
     // ポートを開く．
     serial_port_ = open(port_name_.c_str(), O_RDWR);
 
@@ -124,7 +124,7 @@ bool SerialPortHandler::Initialize() {
     return true;
 }
 
-void SerialPortHandler::Update() {
+void SerialPortHandler1::Update() {
     // 初期化されていなければ早期リターン.
     if (!is_initialized_) return;
 
@@ -148,12 +148,18 @@ void SerialPortHandler::Update() {
                     if (storage_) {
                         auto now = std::chrono::steady_clock::now();
                         std::chrono::duration<double> elapsed = now - start_time;
-                        storage_->Add(elapsed.count(), value * 1000.00);
+                        storage_->Add(elapsed.count(), value * 1000.00 - offset_);
                     }
                 } catch (...) {
                     // パース失敗は無視.
                 }
             }
+            
+            // 軌道開始から10秒を過ぎたらオフセットを取得.
+            if (!offset_ && std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count() > 10.0) {
+                offset_ = storage_->GetAverageValue();
+            }
+
             buffer.clear();
         } else if (c != '\r') {
             // \r は無視、それ以外をバッファに追加.
@@ -165,7 +171,7 @@ void SerialPortHandler::Update() {
     WriteSerial(serial_port_, kStopCommand);
 }
 
-void SerialPortHandler::Finalize() {
+void SerialPortHandler1::Finalize() {
     if (serial_port_ >= 0) {
         // ポートを閉じる.
         close(serial_port_);

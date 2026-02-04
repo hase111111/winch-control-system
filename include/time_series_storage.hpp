@@ -22,6 +22,10 @@ public:
     //! v_n - v_(n-1) / t_n - t_(n-1) を返す.
     double GetLatestDifference() const;
 
+    //! @brief 平均値を取得する.
+    //! 全データの平均値を返す.
+    double GetAverageValue() const;
+
 private:
     mutable std::mutex data_mutex_;
     std::vector<std::pair<double, double>> values_;
