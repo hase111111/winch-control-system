@@ -1,5 +1,5 @@
 
-#ifdef MATH_UTIL_HPP
+#ifndef MATH_UTIL_HPP
 #define MATH_UTIL_HPP
 
 namespace winch {
