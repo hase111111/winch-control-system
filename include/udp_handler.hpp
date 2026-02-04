@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "i_handler.hpp"
+#include "config_loader.hpp"
 #include "time_series_storage.hpp"
 
 namespace winch {
@@ -16,6 +17,7 @@ class UdpHandler final : public IHandler {
 public:
     UdpHandler(int port,
                const std::atomic_bool& stop_flag,
+               const ConfigLoader& config,
                const std::shared_ptr<TimeSeriesStorage>& pot1_storage,
                const std::shared_ptr<TimeSeriesStorage>& pot2_storage);
 
@@ -33,6 +35,8 @@ public:
     
 private:
     const int port_;
+    const double offset_degree0_;
+    const double offset_degree1_;
     const std::atomic_bool& stop_flag_;
     const std::shared_ptr<TimeSeriesStorage> pot1_storage_;
     const std::shared_ptr<TimeSeriesStorage> pot2_storage_;

@@ -13,15 +13,12 @@ namespace winch {
 
 namespace  {
 
-//! @brief 受信データのオフセット角度 [度].
-constexpr double kOffsetDegrees = 0.0;
-
 //! @brief UDPで送られてくるポテンショメータの値は0V ~ 3.3Vの範囲.
 //! これを0.0 ~ 360.0度に変換する.
 double ConvertVoltageToDegrees(const double voltage) {
     constexpr double max_voltage = 3.3;
     constexpr double max_degrees = 360.0;
-    return (voltage / max_voltage) * max_degrees - kOffsetDegrees;
+    return (voltage / max_voltage) * max_degrees;
 }
     
 }  // namespace
@@ -30,9 +27,13 @@ constexpr int INVALID_SOCKET = -1;
 
 UdpHandler::UdpHandler(const int port,
                        const std::atomic_bool& stop_flag,
+                       const ConfigLoader& config,
                        const std::shared_ptr<TimeSeriesStorage>& pot1_storage,
                        const std::shared_ptr<TimeSeriesStorage>& pot2_storage)
-    : port_(port), stop_flag_(stop_flag),
+    : port_(port), 
+      offset_degree0_{config.GetVal<double>("Potentiometer", "offset0", 0.0)},
+      offset_degree1_{config.GetVal<double>("Potentiometer", "offset1", 0.0)},
+      stop_flag_(stop_flag),
       pot1_storage_(pot1_storage),
       pot2_storage_(pot2_storage),
       socket_(INVALID_SOCKET) {}
@@ -100,10 +101,10 @@ void UdpHandler::Update() {
                     const double time_sec = elapsed.count();
 
                     if (pot1_storage_) {
-                        pot1_storage_->Add(time_sec, ConvertVoltageToDegrees(pot1));
+                        pot1_storage_->Add(time_sec, ConvertVoltageToDegrees(pot1)- offset_degree0_) ;
                     }
                     if (pot2_storage_) {
-                        pot2_storage_->Add(time_sec, ConvertVoltageToDegrees(pot2));
+                        pot2_storage_->Add(time_sec, ConvertVoltageToDegrees(pot2)- offset_degree1_) ;
                     }
                 }
             }

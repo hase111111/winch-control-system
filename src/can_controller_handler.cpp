@@ -192,10 +192,11 @@ void CanControllerHandler::Update() {
     // キャリブレーション開始
     std::cout << "キャリブレーション開始..." << std::endl;
     SendAxisState(1, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     SendAxisState(2, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
 
     // 30秒待機
-    std::this_thread::sleep_for(std::chrono::seconds(30));
+    std::this_thread::sleep_for(std::chrono::seconds(15));
 
     if (stop_flag_.load()) return;
 

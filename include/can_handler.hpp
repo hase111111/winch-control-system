@@ -18,7 +18,8 @@ public:
     CanHandler(const ConfigLoader& config,
                const std::atomic_bool& stop_flag,
                std::shared_ptr<TimeSeriesStorage> roadcell_storage,
-               std::shared_ptr<TimeSeriesStorage> potentiometer_storage,
+               std::shared_ptr<TimeSeriesStorage> potentiometer0_storage,
+               std::shared_ptr<TimeSeriesStorage> potentiometer1_storage,
                std::shared_ptr<TimeSeriesStorage> motor0_control_storage,
                std::shared_ptr<TimeSeriesStorage> motor1_control_storage,
                std::shared_ptr<TimeSeriesStorage> motor0_encoder_storage,
@@ -53,7 +54,8 @@ private:
     int can_socket_;
     
     std::shared_ptr<TimeSeriesStorage> roadcell_storage_;
-    std::shared_ptr<TimeSeriesStorage> potentiometer_storage_;
+    std::shared_ptr<TimeSeriesStorage> potentiometer0_storage_;
+    std::shared_ptr<TimeSeriesStorage> potentiometer1_storage_;
     std::shared_ptr<TimeSeriesStorage> motor0_control_storage_;
     std::shared_ptr<TimeSeriesStorage> motor1_control_storage_;
     std::shared_ptr<TimeSeriesStorage> motor0_encoder_storage_;

@@ -93,7 +93,7 @@ std::shared_ptr<IHandler> HandlerFactory::CreateUdpHandler(
         return nullptr;
     }
 
-    return std::make_shared<UdpHandler>(udp_port, stop_flag_, pot0, pot1);
+    return std::make_shared<UdpHandler>(udp_port, stop_flag_, config_, pot0, pot1);
 }
 
 std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
@@ -104,15 +104,16 @@ std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
         return nullptr;
     }
     
-    // storageを取得
+    // storageを取得.
     auto roadcell_storage = FindStorageByName(storages, "Serial Port Roadcell");
-    auto potentiometer_storage = FindStorageByName(storages, "UDP Potentiometer0");
+    auto potentiometer0_storage = FindStorageByName(storages, "UDP Potentiometer0");
+    auto potentiometer1_storage = FindStorageByName(storages, "UDP Potentiometer1");
     auto motor0_control_storage = FindStorageByName(storages, "CAN Motor0 Controll Value");
     auto motor1_control_storage = FindStorageByName(storages, "CAN Motor1 Controll Value");
     auto motor0_encoder_storage = FindStorageByName(storages, "CAN Motor0 Encoder");
     auto motor1_encoder_storage = FindStorageByName(storages, "CAN Motor1 Encoder");
     
-    if (!roadcell_storage || !potentiometer_storage || 
+    if (!roadcell_storage || !potentiometer0_storage || !potentiometer1_storage || 
         !motor0_control_storage || !motor1_control_storage ||
         !motor0_encoder_storage || !motor1_encoder_storage) {
         std::cerr << "CAN用ストレージが見つかりません．" << std::endl;
@@ -120,7 +121,7 @@ std::shared_ptr<IHandler> HandlerFactory::CreateCanHandler(
     }
     
     return std::make_shared<CanHandler>(config_, stop_flag_, 
-                                        roadcell_storage, potentiometer_storage, 
+                                        roadcell_storage, potentiometer0_storage, potentiometer1_storage, 
                                         motor0_control_storage, motor1_control_storage,
                                         motor0_encoder_storage, motor1_encoder_storage);
 }

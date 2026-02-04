@@ -144,11 +144,11 @@ void SerialPortHandler::Update() {
             size_t comma_pos = buffer.find(',');
             if (comma_pos != std::string::npos) {
                 try {
-                    double value = std::stod(buffer.substr(comma_pos + 1));
+                    const long double value = std::stod(buffer.substr(comma_pos + 1));
                     if (storage_) {
                         auto now = std::chrono::steady_clock::now();
                         std::chrono::duration<double> elapsed = now - start_time;
-                        storage_->Add(elapsed.count(), value);
+                        storage_->Add(elapsed.count(), value * 1000 - 16.0);
                     }
                 } catch (...) {
                     // パース失敗は無視.

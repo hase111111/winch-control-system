@@ -1,9 +1,10 @@
 #include "can_handler.hpp"
 
 #include <iostream>
+#include <cmath>
+#include <chrono>
 #include <cstring>
 #include <thread>
-#include <chrono>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -43,7 +44,8 @@ const double P_TO_T = 1.0;
 CanHandler::CanHandler(const ConfigLoader& config,
                        const std::atomic_bool& stop_flag,
                        std::shared_ptr<TimeSeriesStorage> roadcell_storage,
-                       std::shared_ptr<TimeSeriesStorage> potentiometer_storage,
+                       std::shared_ptr<TimeSeriesStorage> potentiometer0_storage,
+					   std::shared_ptr<TimeSeriesStorage> potentiometer1_storage,
                        std::shared_ptr<TimeSeriesStorage> motor0_control_storage,
                        std::shared_ptr<TimeSeriesStorage> motor1_control_storage,
                        std::shared_ptr<TimeSeriesStorage> motor0_encoder_storage,
@@ -52,7 +54,8 @@ CanHandler::CanHandler(const ConfigLoader& config,
       stop_flag_(stop_flag),
       can_socket_(INVALID_SOCKET),
       roadcell_storage_(roadcell_storage),
-      potentiometer_storage_(potentiometer_storage),
+      potentiometer0_storage_(potentiometer0_storage),
+      potentiometer1_storage_(potentiometer1_storage),
       motor0_control_storage_(motor0_control_storage),
       motor1_control_storage_(motor1_control_storage),
       motor0_encoder_storage_(motor0_encoder_storage),
@@ -178,12 +181,14 @@ void CanHandler::ReceiveCanMessages(int timeout_ms) {
 void CanHandler::Update() {
     if (can_socket_ < 0) return;
 
-    // キャリブレーション開始.
+    // キャリブレーション開始
+    std::cout << "キャリブレーション開始..." << std::endl;
     SendAxisState(1, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     SendAxisState(2, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
 
     // 30秒待機
-    std::this_thread::sleep_for(std::chrono::seconds(30));
+    std::this_thread::sleep_for(std::chrono::seconds(15));
 
     if (stop_flag_.load()) return;
 
@@ -205,15 +210,18 @@ void CanHandler::Update() {
         next_send_time += std::chrono::milliseconds(1000 / hz);
 
         // 目標値（Roadcell）と現在値（Potentiometer）を取得.
-        const auto gravity = gravity_compensation_ * GRAVITY_ACCELERATION; 
-        const auto error0 =gravity - roadcell_storage_->GetLatestValue();
+        const auto potentio0 = potentiometer0_storage_->GetLatestValue();
+        const auto gravity = gravity_compensation_ 
+            / cos(potentio0 / 360.0 * 3.1415); 
+        const auto error0_d = roadcell_storage_->GetLatestValue() / 1000.0;
+        const auto error0 = gravity - error0_d / 1000.0;
         const auto d_error0 = -roadcell_storage_->GetLatestDifference();
-        const auto error1 = potentiometer_storage_->GetLatestValue();
-        const auto d_error1 = potentiometer_storage_->GetLatestDifference();
+        const auto error1 = potentiometer1_storage_->GetLatestValue();
+        const auto d_error1 = potentiometer1_storage_->GetLatestDifference();
         
         // PD制御で誤差を計算.
-        const double control_output_motor1 = pd_controller_motor1_.Compute(error0, d_error0);
-        const double control_output_motor2 = pd_controller_motor2_.Compute(error1, d_error1);
+        const double control_output_motor1 = -pd_controller_motor1_.Compute(error0, d_error0);
+        const double control_output_motor2 = -pd_controller_motor2_.Compute(error1, d_error1);
         
         // 制御出力をストレージに保存.
         const double current_time = std::chrono::duration<double>(now.time_since_epoch()).count();
